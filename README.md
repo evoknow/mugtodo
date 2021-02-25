@@ -13,7 +13,7 @@ The biggest advantages that I wanted to have in my iteration of the command-line
 * Text the list to someone
 * Generate interesting reports about time spent, due/past-due/late and accomplishments
 
-=== GENERAL OPTIONS:
+### GENERAL OPTIONS:
 * --list <name> --for <name> .................... sets the namned person as the owner of a list. Defaults to: $USER
 * --add <item> --list <name> .................... adds the item to the named list
 * --add <item> --list <name> --tag <tag name> ... adds the item to the named list with given tag
@@ -25,7 +25,7 @@ The biggest advantages that I wanted to have in my iteration of the command-line
 * --list all .................................... shows all lists and their items
 * --list <name> ................................. shows specified list items
 
-=== STATUS MANAGEMENT:
+### STATUS MANAGEMENT:
 --done #n --list <name>.......................... marks #nth item as done in list
 --start #n --list <name>......................... starts the #nth item in the list 
 --stop  #n --list <name>......................... stops the #nth item in the list
@@ -33,7 +33,7 @@ The biggest advantages that I wanted to have in my iteration of the command-line
 --time #n <day:hour:min> --list <name>........... adds days, hours, minutes to the #nth item in the named list (time reporting)
 --note #n <text> --list <name> .................. adds a note to the nth item in the named list
 
-=== SEARCH / REPORT / EXPORT OPTIONS
+### SEARCH / REPORT / EXPORT OPTIONS
 * --stats ....................................... shows various stats
 * --find <keyword> .............................. searches items in all lists
 * --find <keyword> --for <name> ................. searches items for all lists for named person
@@ -42,7 +42,7 @@ The biggest advantages that I wanted to have in my iteration of the command-line
 * --email <addr> --list <name> .................. sends the list via email to named address
 * --text <addr/number> --list <name> ............ sends the list via imessage to named icloud email/phone
 
-=== REPORTS
+### REPORTS
 * due-(today|tomorrow|this-week|last-week|next-week|this-month|next-month|mon-yyyy|yyyy) 
 * past-due
 * past-due-by-(1...n)-days
@@ -50,16 +50,16 @@ The biggest advantages that I wanted to have in my iteration of the command-line
 * need-tlc
 * accomplishments
 
-=== ADVANCED OPTIONS:
+### ADVANCED OPTIONS:
 * --read <filename> --list <name> ................ reads the given .txt, .json file and adds or updates the items in the named list
 * --set <option> ................................. sets configuration option
 
-=== CONFIGURATION OPTIONS
+### CONFIGURATION OPTIONS
 --set my-name <name> ....... sets the name of default owner from $USER to <name>
 --set my-email <email> ..... sets the email address of the default owner
 --set person <name> <email> <imessage address/number> ... creates a --for target
 --set password 
 
 
-=== FUTURE OPTIONS
+### FUTURE OPTIONS
 * --encrypt --list <name> ... makes a list encrypted 
