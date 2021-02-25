@@ -1,4 +1,4 @@
-== README
+## README
 I was finally fedup with all the TODO apps that I have tried. I had been trying and buying many TODO apps
 over the years. I would find a shiney new one and try it for a few days/weeks/months and get bored and
 never try it again. I finally realized why. I am a developer. I cannot be satified with the other
