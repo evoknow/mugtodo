@@ -50,6 +50,7 @@ class TodoApp
 
    private function runCommand()
    {
+
        foreach($this->commands as $cmd => $args)
        {
             switch($cmd)
@@ -102,15 +103,21 @@ class TodoApp
       $listName = !empty($this->commands['list']) ? $this->commands['list'] : $currentListSlug;
       $listSlug = Util::createSlug($listName);
 
-      if (!preg_match("/#(\d+)\s+(.+)/i", $task, $matches))
+      $for = $this->getOwner();
+
+      if (!preg_match("/#(\d+)(\s+(.+))?/i", $task, $matches))
          return $this->showError("Sorry, you need to pass the item # to change it from a list");
 
       $pos  = $matches[1] - 1;
-      $task = $matches[2];
+      $task = trim($matches[2]);
 
       if (!$items = $this->db['lists'][$listSlug])
           return $this->showError("Sorry cannot find items for $listSlug list\n");
       
+
+      $tag  = $this->getTag();
+      $tags = [];
+              
       $i = 0;
 
       $newItems = [];
@@ -118,8 +125,27 @@ class TodoApp
       {
          if ($i == $pos)
          {
+            // If user is just adding a tag and not changing the actual item
+            // keep the old task
+            if (empty($task))
+                $task = $this->db['lists'][$listSlug][$md5]['task'];
+
+            // Get old tags
+            if (isset($this->db['lists'][$listSlug][$md5]['tags']))
+                $tags = $this->db['lists'][$listSlug][$md5]['tags'];
+
+            // If a tag is provided, add if needed
+            if ($tag)
+                $tags[$tag] = time();
+
             $newMD5 = md5(trim($task));
-            $newItems[$newMD5] = ['task' => $task, 'added' => $details['added'], 'updated' => time(), 'status' => 'pending'];
+            $newItems[$newMD5] = [ 'task' => $task, 
+                                   'added' => $details['added'], 
+                                   'for' => $for,
+                                   'tags' => $tags,
+                                   'updated' => time(), 
+                                   'status' => 'pending'
+                                 ];
 
          } else {
             $newItems[$md5] = $details;
@@ -140,10 +166,18 @@ class TodoApp
        $listSlug = Util::createSlug($listName);
        $taskMD5  = md5(Util::createSlug($task));
        $now      = time();
-
-       $for = $this->getOwner();
+       $for      = $this->getOwner();
+       $tag      = $this->getTag();
 
        $this->db['current']['list'] = $listSlug;
+
+       $tags = [];
+
+       if (isset($this->db['lists'][$listSlug][$taskMD5]['tags']))
+           $tags = $this->db['lists'][$listSlug][$taskMD5]['tags'];
+
+       if ($tag)
+           $tags[$tag] = time();
 
        if (!isset($this->db['lists'][$listSlug][$taskMD5]))
        {
@@ -151,12 +185,18 @@ class TodoApp
                                                         'task' => $task, 
                                                         'added' => $now, 
                                                         'for'   => $for,
+                                                        'tags'  => $tags,
                                                         'status' => self::STATUS_PENDING
                                                       ];
            $this->write();
        }
 
        $this->showList();
+   }
+
+   private function getTag()
+   {
+       return !empty($this->commands['tag']) ? Util::createSlug($this->commands['tag']) : null;
    }
 
    private function getOwner()
@@ -254,6 +294,9 @@ class TodoApp
             $this->commands[$cmd] = $options;
          }
       }
+
+      // Order by alpha so that --add is first (if present)
+      asort($this->commands);
 
       return true;
    }

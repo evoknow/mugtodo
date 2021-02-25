@@ -14,7 +14,7 @@ The biggest advantages that I wanted to have in my iteration of the command-line
 * Generate interesting reports about time spent, due/past-due/late and accomplishments
 
 ### GENERAL OPTIONS:
-* --list <name> --for <name> .................... sets the namned person as the owner of a list. Defaults to: $USER
+* --list <name> --for <name> .................... sets the namned person as the owner of a list. Defaults to: $USER     
 * --add <item> --list <name> .................... adds the item to the named list
 * --add <item> --list <name> --tag <tag name> ... adds the item to the named list with given tag
 * --add <item> --list <name> --for <name> ....... assigns the item to the named owner 
