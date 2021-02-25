@@ -1,0 +1,12 @@
+#!/usr/bin/php
+<?php
+
+mb_internal_encoding("utf-8");
+require_once('TodoApp.class');
+require_once('common/Utility.class');
+
+use \Utility as Util;
+
+$app = new TodoApp();
+$app->run();
+

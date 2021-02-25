@@ -1,0 +1,306 @@
+<?php
+
+use \Utility as Util;
+
+function debug($x, $exit = true) {  Util::debug($x, $exit); }
+
+class TodoApp
+{
+   const  NAME      = 'mugtodo';
+   const  VERSION   = '0.0.1 (alpha)';
+   const  COPYRIGHT = 'https://macuser.group';
+   const  STATUS_PENDING   = 'pending';
+   const  STATUS_COMPLETED = 'done';
+   const  STATUS_DELETED   = 'deleted';
+   const  DEFAULT_LIST_SLUG = 'work';
+   public $homeDir;
+   public $shortArgs;
+   public $longArgs;
+   public $commands;
+   public $timezone;
+   private $jsonFile;
+   private $logFile;
+   private $db;
+   
+   function __construct()
+   {
+      $this->homeDir    = getenv("HOME");
+      $this->setTimezone();
+      $this->startTime  = microtime(true);
+      $this->scriptName = basename(__FILE__);
+      $this->shortArgs  = "hla:d:s:p:n:c:d:t:";
+      $this->longArgs   = ["help", "list:", "add:", "change:",  "done:", "start:", "pause:", "stop", "note:", "stats", "to:",
+                           "search:", "create:", "status:", "delete:", "toggle:"];
+
+      $this->jsonFile   = sprintf("%s/.%s.json", $this->homeDir, self::NAME);
+      $this->logFile    = sprintf("%s/.%s.log",  $this->homeDir, self::NAME);
+
+      $this->getCommands();
+
+      if (!$this->commands)
+           $this->syntax();
+
+      $this->read();
+   }
+
+   public function run()
+   {
+      $this->runCommand();
+   }
+
+   private function runCommand()
+   {
+       foreach($this->commands as $cmd => $args)
+       {
+            switch($cmd)
+            {
+               case 'add'    : $this->add($args); break;
+               case 'list'   : $this->list($args); break;
+               case 'change' : $this->change($args); break;
+               case 'delete' : $this->delete($args); break;
+            }
+       }
+   }
+
+   private function delete($task)
+   {
+      $currentListSlug = isset($this->db['current']['list']) ?  $this->db['current']['list'] : self::DEFAULT_LIST_SLUG;
+      $listName = !empty($this->commands['list']) ? $this->commands['list'] : $currentListSlug;
+      $listSlug = Util::createSlug($listName);
+
+      if (!preg_match("/#(\d+)$/i", $task, $matches))
+      {
+         return $this->showError("Sorry, you need to pass the item # to delete it from a list");
+      }
+
+      $pos   = $matches[1] - 1;
+      $task = $matches[2];
+
+      if (!$items = $this->db['lists'][$listSlug])
+          return $this->showError("Sorry cannot find items for $listSlug list\n");
+      
+      $i = 0;
+
+      $newItems = [];
+      foreach($items as $md5 => $details)
+      {
+         if ($i != $pos)
+            $newItems[$md5] = $details;
+        
+         $i++;
+      }
+
+      $this->db['lists'][$listSlug] = $newItems;
+      $this->write();
+      return false;
+   }
+
+
+   private function change($task)
+   {
+      $currentListSlug = isset($this->db['current']['list']) ?  $this->db['current']['list'] : self::DEFAULT_LIST_SLUG;
+      $listName = !empty($this->commands['list']) ? $this->commands['list'] : $currentListSlug;
+      $listSlug = Util::createSlug($listName);
+
+      if (!preg_match("/#(\d+)\s+(.+)/i", $task, $matches))
+         return $this->showError("Sorry, you need to pass the item # to change it from a list");
+
+      $pos  = $matches[1] - 1;
+      $task = $matches[2];
+
+      if (!$items = $this->db['lists'][$listSlug])
+          return $this->showError("Sorry cannot find items for $listSlug list\n");
+      
+      $i = 0;
+
+      $newItems = [];
+      foreach($items as $md5 => $details)
+      {
+         if ($i == $pos)
+         {
+            $newMD5 = md5(trim($task));
+            $newItems[$newMD5] = ['task' => $task, 'added' => $details['added'], 'updated' => time(), 'status' => 'pending'];
+
+         } else {
+            $newItems[$md5] = $details;
+         }
+        
+         $i++;
+      }
+
+      $this->db['lists'][$listSlug] = $newItems;
+      $this->write();
+      return false;
+   }
+
+   private function add($task)
+   {
+       $currentListSlug = isset($this->db['current']['list']) ?  $this->db['current']['list'] : self::DEFAULT_LIST_SLUG;
+       $listName = !empty($this->commands['list']) ? $this->commands['list'] : $currentListSlug;
+       $listSlug = Util::createSlug($listName);
+       $taskMD5  = md5(Util::createSlug($task));
+       $now      = time();
+
+       $for = $this->getOwner();
+
+       $this->db['current']['list'] = $listSlug;
+
+       if (!isset($this->db['lists'][$listSlug][$taskMD5]))
+       {
+           $this->db['lists'][$listSlug][$taskMD5] = [
+                                                        'task' => $task, 
+                                                        'added' => $now, 
+                                                        'for'   => $for,
+                                                        'status' => self::STATUS_PENDING
+                                                      ];
+           $this->write();
+       }
+
+       $this->showList();
+   }
+
+   private function getOwner()
+   {
+       $owner = !empty($this->commands['for']) ? $this->commands['for'] : getenv('USER');
+       return Util::createSlug($owner);
+   }
+
+   private function list($args)
+   {
+      if (strtolower($args) == 'all')
+      {
+         if (!isset($this->db['lists']))
+             return $this->showError("No list found.");
+
+         foreach($this->db['lists'] as $listSlug => $details)
+         {
+            $this->showList($listSlug, false);
+         }
+
+         exit;
+
+      } else {
+         return $this->showList($args, true);
+      }
+
+   }
+
+   private function showList($listSlug = null, $exit = true)
+   {
+
+      if (empty($listSlug))
+          $listSlug = isset($this->db['current']['list']) ?  $this->db['current']['list'] : self::DEFAULT_LIST_SLUG;
+
+      if (!$items = $this->db['lists'][$listSlug])
+          return false;
+
+      $i = 0;
+      printf("\n%s:\n", strtoupper($listSlug));
+      foreach($items as $task => $details)
+      {
+         $i++;
+         printf("%d) %-40s ... %-15s ... %s ... %s\n", $i, $details['task'], $details['for'], $details['status'], date('m/d/y h:i a', $details['added']));
+      }
+      printf("\n");
+
+      if ($exit)
+          exit();
+   
+   }
+
+   public function syntax()
+   {
+      $usage = $this->getUsage();
+      $n = $this->scriptName;
+      printf("%s version: %s\n", $n, self::VERSION);
+      printf("\nYou have used this software %d time%s so far! Thank you!", $usage, ($usage > 1) ? 's' : '');
+      printf("\nSee: %s for usage/tutorial videos.\n\n", self::COPYRIGHT);
+      exit;
+   }
+
+   private function getCommands()
+   {
+      $args     = Util::getRawArgs();
+      $started  = false;
+      $curCmd   = null;
+      $commands = null;
+
+      array_shift($args);
+
+      foreach($args as $x) 
+      {   
+         if (preg_match("/^\-+(\w+)/", $x, $matches)) 
+         {
+             $curCmd = $matches[1];
+             $commands[$curCmd] = null;
+             $started = true;
+             continue;
+         }
+
+         if ($started)
+         {
+             $commands[$curCmd]['params'][] = trim($x);
+         }
+      }
+
+      if ($commands)
+      {
+         foreach($commands as $cmd => $details)
+         {
+            $options = null;
+            if (is_array($details['params']))
+                $options = join(' ', $details['params']);
+        
+            $this->commands[$cmd] = $options;
+         }
+      }
+
+      return true;
+   }
+
+   private function getUsage()
+   {
+      return isset($this->db['internal']['usage']) ? $this->db['internal']['usage'] : 1;
+   }
+
+   private function setTimezone()
+   {
+      $this->timezone = Util::getMacOSLocalTimezone();
+      date_default_timezone_set ($this->timezone);
+   }
+
+   private function write()
+   {
+      $this->db['internal']['usage'] = $this->getUsage() + 1;
+      $this->db['internal']['lists'] = count($this->db['lists']);
+
+      $json = json_encode($this->db, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+      echo "Writing {$this->jsonFile}\n";
+      file_put_contents($this->jsonFile, $json);
+   }
+
+   private function showError($msg)
+   {
+      die($msg);
+   }
+
+   private function read()
+   {
+      if (!file_exists($this->jsonFile))
+          return false;
+
+      $this->db  = json_decode(file_get_contents($this->jsonFile), true);
+
+      $jsonError = json_last_error();
+
+      if ($jsonError != JSON_ERROR_NONE)
+      {
+          $this->log("Cannot load {$this->jsonFile}. Error code: $jsonError");
+          die();
+      }
+      return true;
+   }
+   
+
+} // End of TodoApp class

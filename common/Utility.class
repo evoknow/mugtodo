@@ -1,0 +1,147 @@
+<?php
+/*
+ *
+ * Filename: Utility.class
+ * Used for misc utility functions 
+ * 
+ */
+class Utility {
+
+   static function getLastArg()
+   {
+      if (!$args = self::getRawArgs())
+          return false;
+
+      return trim(array_pop($args));
+   }
+
+   static function getRawArgs()
+   {
+      global $argv;
+      return $argv;
+   }
+
+   static function getArgs($short, $long)
+   {
+       if (!$options = getopt($short, $long))
+           return false;
+
+       return $options;
+   }
+
+  static function getFileHash($path)
+  { 
+      return @is_file($path) ? md5_file($path) : null;
+  }
+
+  static function findFiles($path, $pattern = null, $ignoreDir = '/(Library|Application)/', $showProgress = true)
+  {
+     $directory = new \RecursiveDirectoryIterator($path, \FilesystemIterator::FOLLOW_SYMLINKS);
+     $filter    = new \RecursiveCallbackFilterIterator($directory, 
+     
+        function ($current, $key, $iterator) use ($pattern, $ignoreDir)  
+        {
+         // Skip hidden files and directories.
+         if ($current->getFilename()[0] === '.') 
+             return false;
+
+         // Only recurse into intended sub directories
+         if ($current->isDir())
+            return !preg_match($ignoreDir, $current->getFilename());
+
+         // Only if current file matches our pattern
+         return preg_match($pattern, $current->getFilename());
+        }
+      );
+
+     $iterator = new \RecursiveIteratorIterator($filter);
+
+     $list = [];
+     $cnt  = 0; 
+
+     $finfo = finfo_open(FILEINFO_MIME_TYPE);
+
+     foreach ($iterator as $info) 
+     {
+        $cnt++;
+        $file = $info->getPathname();
+        $mimeType = @finfo_file($finfo, $file);
+       
+        if ($mimeType != 'audio/mpeg')
+        {
+          // echo "SKIPPING $file MIME_TYPE=$mimeType\n";
+          continue;
+        }
+        
+        if ($showProgress)
+           echo "\033[31m$cnt found $file\033[37m\r";
+        
+
+        $list[] = $file;
+     }
+
+     finfo_close($finfo);
+
+     return $list;
+  }
+
+  static function mb_str_pad($input, $pad_length, $pad_string=' ', $pad_type=STR_PAD_RIGHT, $encoding='UTF-8')
+  {
+      $mb_diff=mb_strlen($input, $encoding)-strlen($input);
+      return str_pad($input,$pad_length-$mb_diff,$pad_string,$pad_type);
+  }
+
+  static function getMacOSLocalTimezone()
+  {
+     $tz     = explode('/', readlink('/etc/localtime'));
+     $zone   = array_pop($tz);
+     $region = array_pop($tz);
+
+     return $region . '/' . $zone;
+  }
+
+  static function createSlug($x)
+  {
+     $x = trim(strtolower($x));
+     $x = preg_replace("/[^a-z0-9]+/", '-', $x);
+     $x = str_replace('-s', 's', $x);
+     return $x;
+  }
+  
+  static function prompt($msg, $expected, $toupper = true)
+  {
+     $multiple     =  false;
+     $userResponse = false;
+
+     if (is_array($expected))
+     {
+        $multiple = true;
+        $expected = array_map('strtolower', $expected);
+     }
+     
+     $stdin = fopen("php://stdin", "r");
+     
+     $done = false;
+
+     while(!$done)
+     {
+        echo $msg;
+        $userResponse = trim(fgets($stdin));
+
+        if ($multiple && in_array(strtolower($userResponse), $expected))
+            $done = true;
+
+         elseif(!$multiple && preg_match("/$expected/i", $userResponse))
+            $done = true;
+     }
+
+     return ($toupper) ? strtoupper($userResponse) : $userResponse;
+  }
+
+  static function debug($x, $exit = true)
+  {
+      print_r($x);
+      if ($exit) die();
+  }
+
+} // End of Utility class
