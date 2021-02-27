@@ -50,7 +50,6 @@ class TodoApp
 
    private function runCommand()
    {
-
        foreach($this->commands as $cmd => $args)
        {
             switch($cmd)
@@ -68,6 +67,7 @@ class TodoApp
 
    private function impliedSearch($args)
    {
+
        $intersect = array_intersect(array_keys($this->commands), ['add', 'change', 'list', 'delete']);
 
        // Cannot do implicit search if one of the action commands above is present
@@ -165,34 +165,55 @@ class TodoApp
 
    private function delete($task)
    {
+      $confirmed = false;
       $currentListSlug = isset($this->db['current']['list']) ?  $this->db['current']['list'] : self::DEFAULT_LIST_SLUG;
       $listName = !empty($this->commands['list']) ? $this->commands['list'] : $currentListSlug;
       $listSlug = Util::createSlug($listName);
 
-      if (!preg_match("/#(\d+)$/i", $task, $matches))
-      {
-         return $this->showError("Sorry, you need to pass the item # to delete it from a list");
-      }
-
-      $pos   = $matches[1] - 1;
-      $task = $matches[2];
+      $for = !empty($this->commands['for']) ? strtoupper($this->commands['for']) : null;
 
       if (!$items = $this->db['lists'][$listSlug])
           return $this->showError("Sorry cannot find items for $listSlug list\n");
-      
+
+   
+      if (!$deleteAll = preg_match("/^(all)$/i", $task, $matches) ? true : false)
+      {
+         if (!preg_match("/#(\d+)$/i", $task, $matches))
+              return $this->showError("Sorry, you need to pass the item # to delete it from a list");
+
+         $pos   = $matches[1] - 1;
+         $task = $matches[2];
+      }
+
+      if (!$confirmed)
+      {
+         $prompt =  'Are you sure (yes/no)?';
+         $answer = Util::readInput($prompt, ["accepted" => ['yes', 'no']]);
+         if ($answer == 'no')
+             return false;
+      }
+
       $i = 0;
 
       $newItems = [];
+   
       foreach($items as $md5 => $details)
       {
-         if ($i != $pos)
-            $newItems[$md5] = $details;
-        
-         $i++;
+         $thisFor = strtoupper($details['for']);
+
+         if ($deleteAll  && ($for == $thisFor || !$for))
+             continue;
+
+         // If deleting a specific item
+         if (!$for && $i++ == $pos)
+            continue;
+   
+         $newItems[$md5] = $details;
       }
 
       $this->db['lists'][$listSlug] = $newItems;
       $this->write();
+      $this->showList($listSlug);
       return false;
    }
 
@@ -466,9 +487,10 @@ class TodoApp
          }
       }
 
+
       // Order by alpha so that --add is first (if present)
       if ($this->commands)
-          asort($this->commands);
+          ksort($this->commands, SORT_STRING);
 
       return true;
    }
@@ -513,7 +535,6 @@ class TodoApp
 
       $json = json_encode($this->db, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
-      echo "Writing {$this->jsonFile}\n";
       file_put_contents($this->jsonFile, $json);
    }
 

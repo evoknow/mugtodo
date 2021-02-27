@@ -75,7 +75,6 @@ class Utility {
         
         if ($showProgress)
            echo "\033[31m$cnt found $file\033[37m\r";
-        
 
         $list[] = $file;
      }
@@ -136,6 +135,43 @@ class Utility {
      }
 
      return ($toupper) ? strtoupper($userResponse) : $userResponse;
+  }
+
+  static function readInput($prompt = null, $options = null)
+  {
+      $fh = fopen('php://stdin', 'r');
+
+      $done     = false;
+      $validate = false;
+
+      if (isset($options) && is_array($options['accepted']))
+      {
+           $validate = true;
+           $accepptedAnswers = array_map('strtolower', $options['accepted']);
+      }
+
+      while(!$done)
+      {
+         if ($prompt)
+            printf("%s ", $prompt);
+
+         $answer = trim(fgets($fh));
+
+         if ($validate)
+         {
+             $done = in_array(strtolower($answer), $accepptedAnswers) ? true : false;
+             
+         } else {
+            $done = true;
+         }
+        
+      }
+
+      echo "\n";
+      fclose($fh);
+
+      return $answer;
+
   }
 
   static function debug($x, $exit = true)
