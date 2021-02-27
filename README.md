@@ -14,16 +14,17 @@ The biggest advantages that I wanted to have in my iteration of the command-line
 * Generate interesting reports about time spent, due/past-due/late and accomplishments
 
 ### GENERAL OPTIONS:
-* --list <name> --for <name> .................... sets the namned person as the owner of a list. Defaults to: $USER     
-* --add <item> --list <name> .................... adds the item to the named list
-* --add <item> --list <name> --tag <tag name> ... adds the item to the named list with given tag
-* --add <item> --list <name> --for <name> ....... assigns the item to the named owner 
-* --add <item> --list <name> --due <datetime> ... adds the item in the named list with a due date/time
-* --change #n something -list <name>............. changes nth item in the named list
-* --delete #n --list <name> ..................... delete nth item from the named list;
-* --delete --list <name>......................... deletes the named list
-* --list all .................................... shows all lists and their items
-* --list <name> ................................. shows specified list items
+* --list <name> .................................... shows the named list. Type 'all' to view all lists
+* --add <item> --list <name> [meta options]......... adds the item to the named list
+* --change #n <item> --list <name> [meta options]... changes nth item in the list
+* --delete #n --list <name> ........................ delete nth item from the named list;
+* --delete --list <name>............................ deletes the named list
+
+### META OPTIONS:
+* --for <name> ........... item is for named person
+* --due <datetime> ....... item's due date time
+* --tag <name> ........... item's tag. Item can have multiple tags added one at a time using --add or --change
+* --meta <key> <value> ... set key=value. Example:   --meta cost $100  --meta price $99 --meta priority high
 
 ### STATUS MANAGEMENT:
 --done #n --list <name>.......................... marks #nth item as done in list

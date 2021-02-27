@@ -29,7 +29,7 @@ class TodoApp
       $this->startTime  = microtime(true);
       $this->scriptName = basename(__FILE__);
       $this->shortArgs  = "hla:d:s:p:n:c:d:t:";
-      $this->longArgs   = ["help", "list:", "add:", "change:",  "done:", "start:", "pause:", "stop", "note:", "stats", "to:",
+      $this->longArgs   = ["help", "list:", "add:", "change:",  "done:", "meta:", "start:", "pause:", "stop", "note:", "stats", "to:",
                            "search:", "create:", "status:", "delete:", "toggle:"];
 
       $this->jsonFile   = sprintf("%s/.%s.json", $this->homeDir, self::NAME);
@@ -59,8 +59,46 @@ class TodoApp
                case 'list'   : $this->list($args); break;
                case 'change' : $this->change($args); break;
                case 'delete' : $this->delete($args); break;
+               case 'search' : $this->search($args); break;
             }
        }
+   }
+
+   private function search($keyword)
+   {
+       echo "Search $keyword \n";
+       $found = [];
+       $lists = $this->db['lists'];
+
+       foreach($lists as $listSlug => $items)
+       {
+            foreach($items as $itemSlug => $thisItem)
+            {
+               $task  = $thisItem['task'];
+               $tags  = $thisItem['tags'];
+
+               if (is_array($tags)) foreach($tags as $thisTag => $added)
+               {
+                  if (preg_match("/$keyword/i", $thisTag))
+                  {
+                        $found[$listSlug][$itemSlug] = $thisItem;
+                  }
+               }
+            }
+       }
+
+       if ($found)
+       {
+          foreach($found as $listSlug => $items)
+          {
+             printf("\nList: %s .. match found: %s \n", $listSlug, count($items));
+             $this->showPartialList($items);
+          }
+             
+       }
+
+      
+       exit;
    }
 
    private function delete($task)
@@ -161,37 +199,79 @@ class TodoApp
 
    private function add($task)
    {
+       $changed  = false;
        $currentListSlug = isset($this->db['current']['list']) ?  $this->db['current']['list'] : self::DEFAULT_LIST_SLUG;
        $listName = !empty($this->commands['list']) ? $this->commands['list'] : $currentListSlug;
        $listSlug = Util::createSlug($listName);
        $taskMD5  = md5(Util::createSlug($task));
        $now      = time();
        $for      = $this->getOwner();
-       $tag      = $this->getTag();
 
        $this->db['current']['list'] = $listSlug;
 
-       $tags = [];
-
-       if (isset($this->db['lists'][$listSlug][$taskMD5]['tags']))
-           $tags = $this->db['lists'][$listSlug][$taskMD5]['tags'];
-
-       if ($tag)
-           $tags[$tag] = time();
-
-       if (!isset($this->db['lists'][$listSlug][$taskMD5]))
+       if (!isset($this->db['lists'][$listSlug][$taskMD5]['task']))
        {
-           $this->db['lists'][$listSlug][$taskMD5] = [
+          $changed = true; 
+          $this->db['lists'][$listSlug][$taskMD5] = [
                                                         'task' => $task, 
                                                         'added' => $now, 
                                                         'for'   => $for,
-                                                        'tags'  => $tags,
                                                         'status' => self::STATUS_PENDING
                                                       ];
-           $this->write();
+         
+       }
+       
+
+       if ($newMeta  = $this->getMeta())
+       {
+          $metaData = [];
+
+          if (isset($this->db['lists'][$listSlug][$taskMD5]['meta']))
+              $metaData = $this->db['lists'][$listSlug][$taskMD5]['meta'];
+
+           $this->db['lists'][$listSlug][$taskMD5]['meta'] = array_merge($newMeta, $metaData);
+           $changed = true;
        }
 
+       if ($newTag   = $this->getTag())
+       {
+          $this->db['lists'][$listSlug][$taskMD5]['tags'][$newTag] = time();
+          $changed = true;
+       }
+
+       if ($changed)
+          $this->write();
+           
        $this->showList();
+   }
+
+
+   private function getMeta()
+   {
+       if (empty($this->commands['meta']))
+           return false;
+
+       $args = trim($this->commands['meta']);
+
+       if (preg_match("/(\w+)=(\w+)/", $args, $matches))
+       {
+          array_shift($matches);
+          $args = array_map('trim', $matches);
+
+       }  else {
+         $args = array_map('trim', explode(' ',    $args));
+       }
+       
+       
+       if (!is_array($args) || count($args) <= 1)
+          $this->showError("Please use --meta key value format");
+
+      $meta  = [];
+      $key   = array_shift($args);
+      $value = trim(join(' ', $args));
+
+      return [$key => $value];
+
    }
 
    private function getTag()
@@ -223,6 +303,20 @@ class TodoApp
          return $this->showList($args, true);
       }
 
+   }
+
+   private function showPartialList($items = null)
+   {
+      $i = ord('a');
+
+      foreach($items as $task => $details)
+      {
+         $ch = chr($i++);
+         printf("%s) %-40s ... %-15s ... %s ... %s\n", $ch, $details['task'], $details['for'], $details['status'], date('m/d/y h:i a', $details['added']));
+      }
+
+      printf("\n");
+   
    }
 
    private function showList($listSlug = null, $exit = true)
