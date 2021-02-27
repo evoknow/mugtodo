@@ -38,6 +38,7 @@ The biggest advantages that I wanted to have in my iteration of the command-line
 * --stats ....................................... shows various stats
 * --find <keyword> .............................. searches items in all lists
 * --find <keyword> --for <name> ................. searches items for all lists for named person
+* --find <keyword> --meta <key> <value> ......... searches items for all lists matching meta key=value
 * --report <short-name> --for <name>............. shows named report for named person
 * --export --file <name> --list <name> .......... exports the named list to a file. Supports: .md (markdown), .pdf, .html, .json, .txt
 * --email <addr> --list <name> .................. sends the list via email to named address

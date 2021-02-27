@@ -30,7 +30,7 @@ class TodoApp
       $this->scriptName = basename(__FILE__);
       $this->shortArgs  = "hla:d:s:p:n:c:d:t:";
       $this->longArgs   = ["help", "list:", "add:", "change:",  "done:", "meta:", "start:", "pause:", "stop", "note:", "stats", "to:",
-                           "search:", "create:", "status:", "delete:", "toggle:"];
+                           "search:", "find:", "create:", "status:", "delete:", "toggle:"];
 
       $this->jsonFile   = sprintf("%s/.%s.json", $this->homeDir, self::NAME);
       $this->logFile    = sprintf("%s/.%s.log",  $this->homeDir, self::NAME);
@@ -59,16 +59,49 @@ class TodoApp
                case 'list'   : $this->list($args); break;
                case 'change' : $this->change($args); break;
                case 'delete' : $this->delete($args); break;
-               case 'search' : $this->search($args); break;
+               case 'search' : 
+               case 'find'   : $this->search($args); break;
+               default       : $this->impliedSearch($args);
             }
        }
    }
 
+   private function impliedSearch($args)
+   {
+       $intersect = array_intersect(array_keys($this->commands), ['add', 'change', 'list', 'delete']);
+
+       // Cannot do implicit search if one of the action commands above is present
+       if (count($intersect) > 0)
+           return false;
+
+       $this->search('.');
+   }
+
    private function search($keyword)
    {
-       echo "Search $keyword \n";
+       $keyword = trim($keyword);
+
+       if (empty($keyword) && empty($this->commands['meta']) && $this->commands['for'])
+           return false;
+
        $found = [];
        $lists = $this->db['lists'];
+       $searchMeta = false;
+       $searchFor  = false;
+
+       if ($this->commands['for'])
+       {
+          $forWho = strtoupper($this->commands['for']);
+          $searchFor = true;
+       }
+
+       if ($this->commands['meta'])
+       {
+          $meta = $this->getMeta();
+          $findMetaKey   = array_keys($meta)[0];
+          $findMetaValue = strtoupper(array_values($meta)[0]);
+          $searchMeta    = true;
+       }
 
        foreach($lists as $listSlug => $items)
        {
@@ -76,27 +109,56 @@ class TodoApp
             {
                $task  = $thisItem['task'];
                $tags  = $thisItem['tags'];
+               $meta  = is_array($thisItem['meta']) ? array_map('strtoupper', $thisItem['meta']) : null;
+               $for   = $thisItem['for'];
+
+               if (!empty($keyword) && preg_match("/$keyword/i", $task))
+                  $found[$listSlug][$itemSlug] = $thisItem;
 
                if (is_array($tags)) foreach($tags as $thisTag => $added)
                {
                   if (preg_match("/$keyword/i", $thisTag))
-                  {
                         $found[$listSlug][$itemSlug] = $thisItem;
-                  }
                }
+
+               if ($searchMeta && is_array($meta) && $meta[$findMetaKey] == $findMetaValue)
+                   $found[$listSlug][$itemSlug] = $thisItem;
+               else if ($searchMeta)
+                   unset($found[$listSlug][$itemSlug]);
+
             }
        }
 
        if ($found)
        {
-          foreach($found as $listSlug => $items)
-          {
-             printf("\nList: %s .. match found: %s \n", $listSlug, count($items));
-             $this->showPartialList($items);
-          }
-             
-       }
 
+            if ($searchFor) 
+            {
+               foreach($found as $listSlug => $items)
+               {
+                  foreach($items as $itemSlug => $thisItem)
+                  {
+                      if ($for = $thisItem['for'])
+                      {
+                          if (strtoupper($for) != $forWho)
+                              unset($items[$itemSlug]);
+                      }
+
+                     if (count($items) > 0)
+                         $found[$listSlug] = $items;
+                     else
+                         unset($found[$listSlug]);
+
+                  }
+               }
+            } 
+
+            foreach($found as $listSlug => $items)
+            {
+               printf("\nList: %s .. match found: %s \n", $listSlug, count($items));
+               $this->showPartialList($items);
+            }
+       }
       
        exit;
    }
@@ -134,7 +196,6 @@ class TodoApp
       return false;
    }
 
-
    private function change($task)
    {
       $currentListSlug = isset($this->db['current']['list']) ?  $this->db['current']['list'] : self::DEFAULT_LIST_SLUG;
@@ -152,7 +213,6 @@ class TodoApp
       if (!$items = $this->db['lists'][$listSlug])
           return $this->showError("Sorry cannot find items for $listSlug list\n");
       
-
       $tag  = $this->getTag();
       $tags = [];
               
@@ -221,17 +281,19 @@ class TodoApp
          
        }
        
-
-       if ($newMeta  = $this->getMeta())
-       {
-          $metaData = [];
-
-          if (isset($this->db['lists'][$listSlug][$taskMD5]['meta']))
-              $metaData = $this->db['lists'][$listSlug][$taskMD5]['meta'];
-
-           $this->db['lists'][$listSlug][$taskMD5]['meta'] = array_merge($newMeta, $metaData);
+       if ($this->updateMeta($listSlug, $taskMD5))
            $changed = true;
-       }
+
+      //  if ($newMeta  = $this->getMeta())
+      //  {
+      //     $metaData = [];
+
+      //     if (isset($this->db['lists'][$listSlug][$taskMD5]['meta']))
+      //         $metaData = $this->db['lists'][$listSlug][$taskMD5]['meta'];
+
+      //      $this->db['lists'][$listSlug][$taskMD5]['meta'] = array_merge($newMeta, $metaData);
+      //      $changed = true;
+      //  }
 
        if ($newTag   = $this->getTag())
        {
@@ -244,7 +306,6 @@ class TodoApp
            
        $this->showList();
    }
-
 
    private function getMeta()
    {
@@ -321,7 +382,6 @@ class TodoApp
 
    private function showList($listSlug = null, $exit = true)
    {
-
       if (empty($listSlug))
           $listSlug = isset($this->db['current']['list']) ?  $this->db['current']['list'] : self::DEFAULT_LIST_SLUG;
 
@@ -340,6 +400,23 @@ class TodoApp
       if ($exit)
           exit();
    
+   }
+
+   private function updateMeta($listSlug, $itemID)
+   {
+
+      if (!$newMeta  = $this->getMeta())
+         return false;
+
+      $metaData = [];
+
+      if (isset($this->db['lists'][$listSlug][$itemID]['meta']))
+            $metaData = $this->db['lists'][$listSlug][$itemID]['meta'];
+
+      $this->db['lists'][$listSlug][$itemID]['meta'] = array_merge($newMeta, $metaData);
+
+      return true;
+
    }
 
    public function syntax()
@@ -390,7 +467,8 @@ class TodoApp
       }
 
       // Order by alpha so that --add is first (if present)
-      asort($this->commands);
+      if ($this->commands)
+          asort($this->commands);
 
       return true;
    }
@@ -404,17 +482,6 @@ class TodoApp
    {
       $this->timezone = Util::getMacOSLocalTimezone();
       date_default_timezone_set ($this->timezone);
-   }
-
-   private function write()
-   {
-      $this->db['internal']['usage'] = $this->getUsage() + 1;
-      $this->db['internal']['lists'] = count($this->db['lists']);
-
-      $json = json_encode($this->db, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-
-      echo "Writing {$this->jsonFile}\n";
-      file_put_contents($this->jsonFile, $json);
    }
 
    private function showError($msg)
@@ -438,6 +505,17 @@ class TodoApp
       }
       return true;
    }
-   
+
+   private function write()
+   {
+      $this->db['internal']['usage'] = $this->getUsage() + 1;
+      $this->db['internal']['lists'] = count($this->db['lists']);
+
+      $json = json_encode($this->db, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+      echo "Writing {$this->jsonFile}\n";
+      file_put_contents($this->jsonFile, $json);
+   }
+
 
 } // End of TodoApp class
