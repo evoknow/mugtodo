@@ -249,27 +249,24 @@ class TodoApp
             if (empty($task))
                 $task = $this->db['lists'][$listSlug][$md5]['task'];
 
-            // Get old tags
-            if (isset($this->db['lists'][$listSlug][$md5]['tags']))
-                $tags = $this->db['lists'][$listSlug][$md5]['tags'];
+            $meta   = $this->updateMeta($listSlug, $md5);
 
-            // If a tag is provided, add if needed
-            if ($tag)
-                $tags[$tag] = time();
+            $status = $this->updateStatus($listSlug, $md5);
+            $tags   = $this->updateTags($listSlug, $md5);
 
-            $newMD5 = md5(trim($task));
-            $newItems[$newMD5] = [ 'task' => $task, 
-                                   'added' => $details['added'], 
-                                   'for' => $for,
-                                   'tags' => $tags,
-                                   'updated' => time(), 
-                                   'status' => 'pending'
-                                 ];
+            $md5 = md5(trim($task));
 
-         } else {
-            $newItems[$md5] = $details;
-         }
-        
+            $details = ['task' => $task, 
+                        'added'   => $details['added'], 
+                        'for'     => $for,
+                        'tags'    => $tags,
+                        'updated' => time(), 
+                        'status'  => $status,
+                        'meta'    => $meta
+                      ];
+         } 
+
+         $newItems[$md5] = $details;
          $i++;
       }
 
@@ -305,17 +302,6 @@ class TodoApp
        if ($this->updateMeta($listSlug, $taskMD5))
            $changed = true;
 
-      //  if ($newMeta  = $this->getMeta())
-      //  {
-      //     $metaData = [];
-
-      //     if (isset($this->db['lists'][$listSlug][$taskMD5]['meta']))
-      //         $metaData = $this->db['lists'][$listSlug][$taskMD5]['meta'];
-
-      //      $this->db['lists'][$listSlug][$taskMD5]['meta'] = array_merge($newMeta, $metaData);
-      //      $changed = true;
-      //  }
-
        if ($newTag   = $this->getTag())
        {
           $this->db['lists'][$listSlug][$taskMD5]['tags'][$newTag] = time();
@@ -335,7 +321,7 @@ class TodoApp
 
        $args = trim($this->commands['meta']);
 
-       if (preg_match("/(\w+)=(\w+)/", $args, $matches))
+       if (preg_match("/(\w+)\s*=?\s*(.+)?/", $args, $matches))
        {
           array_shift($matches);
           $args = array_map('trim', $matches);
@@ -344,11 +330,9 @@ class TodoApp
          $args = array_map('trim', explode(' ',    $args));
        }
        
-       
        if (!is_array($args) || count($args) <= 1)
           $this->showError("Please use --meta key value format");
 
-      $meta  = [];
       $key   = array_shift($args);
       $value = trim(join(' ', $args));
 
@@ -360,6 +344,44 @@ class TodoApp
    {
        return !empty($this->commands['tag']) ? Util::createSlug($this->commands['tag']) : null;
    }
+
+   private function updateStatus($listSlug, $itemID)
+   {
+       $oldStatus = $this->db['lists'][$listSlug][$itemID]['status'];
+       $oldStatus = isset($oldStatus) ? $oldStatus : self::STATUS_PENDING;
+       $status = !empty($this->commands['status']) ? $this->commands['status'] : $oldStatus;
+       return $status;
+   }
+
+   private function updateTags($listSlug, $itemID)
+   {
+      if (!$newTag  = $this->getTag())
+         return false;
+
+      $tags = $this->db['lists'][$listSlug][$itemID]['tags'];
+      $tags = isset($tags) ? $tags : [];
+      $this->db['lists'][$listSlug][$itemID]['tags'][$newTag] = time();
+
+      return $this->db['lists'][$listSlug][$itemID]['tags'];
+
+   }
+
+
+   private function updateMeta($listSlug, $itemID)
+   {
+      if (!$newMeta  = $this->getMeta())
+         return false;
+
+      $metaData = $this->db['lists'][$listSlug][$itemID]['meta'];
+      $metaData = isset($metaData) ? $metaData : [];
+
+      // We want new meta to replace existing key=val so new meta needs to be paran #2
+      $this->db['lists'][$listSlug][$itemID]['meta'] = array_merge($metaData, $newMeta);
+    
+      return $this->db['lists'][$listSlug][$itemID]['meta'];
+
+   }
+
 
    private function getOwner()
    {
@@ -421,23 +443,6 @@ class TodoApp
       if ($exit)
           exit();
    
-   }
-
-   private function updateMeta($listSlug, $itemID)
-   {
-
-      if (!$newMeta  = $this->getMeta())
-         return false;
-
-      $metaData = [];
-
-      if (isset($this->db['lists'][$listSlug][$itemID]['meta']))
-            $metaData = $this->db['lists'][$listSlug][$itemID]['meta'];
-
-      $this->db['lists'][$listSlug][$itemID]['meta'] = array_merge($newMeta, $metaData);
-
-      return true;
-
    }
 
    public function syntax()

@@ -18,13 +18,13 @@ The biggest advantages that I wanted to have in my iteration of the command-line
 * --add <item> --list <name> [meta options]......... adds the item to the named list
 * --change #n <item> --list <name> [meta options]... changes nth item in the list
 * --delete #n --list <name> ........................ delete nth item from the named list;
-* --delete --list <name>............................ deletes the named list
+* --delete --list <name>  --for <user>.............. deletes all items for a given user (optional)
 
 ### META OPTIONS:
 * --for <name> ........... item is for named person
 * --due <datetime> ....... item's due date time
 * --tag <name> ........... item's tag. Item can have multiple tags added one at a time using --add or --change
-* --meta <key> <value> ... set key=value. Example:   --meta cost $100  --meta price $99 --meta priority high
+* --meta <key> <value> ... set key=value. Example:   --meta cost $100  --meta price $99 --meta priority high --meta type shopping 
 
 ### STATUS MANAGEMENT:
 --done #n --list <name>.......................... marks #nth item as done in list
